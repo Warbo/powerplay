@@ -1,6 +1,6 @@
-This is an implementation of Jürgen Schmidhuber's PowerPlay architecture[1],
-implemented in the dependently-typed language Coq[2]. Using a system like Coq
-gives us two things:
+This is an implementation of Jürgen Schmidhuber's PowerPlay[1] architecture for
+'Universal Artificial Intelligence', implemented in the dependently-typed language
+Coq[2]. Using a system like Coq gives us two things:
 
  * The PowerPlay implementation is formally verified
  * We can build PowerPlay's proof machinery on top of Coq's
