@@ -5,8 +5,14 @@ Coq[2]. Using a system like Coq gives us two things:
  * The PowerPlay implementation is formally verified
  * We can build PowerPlay's proof machinery on top of Coq's
 
-Specifications for several variants of the PowerPlay architecture can be found
-in Arch.v.
+The repository is layed out as follows:
+
+  * Arch.v     Initial attempt at PowerPlay specification, split into inter-
+               dependent modules
+  * Classes.v  Rewrite of Arch.v using Coq typeclasses, although this now mostly
+               contains regular inductive types
+  * Expr.v     Initial attempt at defining a reflective Coq-in-Coq implementation
+  * Util.v     Generic utility functions and theorems
 
 [1] http://www.idsia.ch/~juergen/interest.html
 [2] http://coq.inria.fr
