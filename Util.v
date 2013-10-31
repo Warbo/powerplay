@@ -59,7 +59,7 @@ Definition uwb' : forall a b (i : Iso a b)
 Defined.
 Arguments uwb' [a b] i f x _.
 
-Definition iso_f (a b : Type)
+Definition iso_f {a b : Type}
                  (i   : Iso a b)
                  (f   : a -> Type)
                  (x   : a)
@@ -72,18 +72,30 @@ Definition iso_f (a b : Type)
   intro. unfold uwb. unfold uwa. destruct i. unfold eq_rect_r.
   rewrite (bab x). compute. auto.
 Defined.
-Arguments iso_f [a b] i f x.
 
-Definition optionMap (i o : Type) (x : option i) (f : i -> o) : option o
+Definition optionMap {i o : Type} (x : option i) (f : i -> o) : option o
         := match x with
                | None    => None
                | Some x' => Some (f x')
            end.
-Arguments optionMap [i o] x f.
 
 Theorem optionMapComposes :
-        forall a b c (f : a -> b) (g : b -> c) x,
+        forall {a b c} (f : a -> b) (g : b -> c) x,
                optionMap (optionMap x f) g = optionMap x (compose g f).
   intros. unfold optionMap. destruct x. unfold compose. auto. auto.
 Qed.
-Arguments optionMapComposes [a b c] f g x.
+
+Definition sum_coalesce {il ir o : Type}
+                        (f       : il -> o)
+                        (g       : ir -> o)
+                        (i       : sum il ir)
+                                 : o
+        := match i with
+               | inl x => f x
+               | inr x => g x
+           end.
+
+Fixpoint iterate {A} n f (i : A) := match n with
+                                        | 0    => i
+                                        | S n' => iterate n' f (f i)
+                                    end.

@@ -1,7 +1,6 @@
-(* PowerPlay is a cognitive architecture, a design for a mind, which aims to be
- * unboundedly powerful whilst also being practical. Here, we'll produce a
- * specification for PowerPlay, which implementations can check for
- * conformance.
+(* PowerPlay is a problem-solving algorithm which aims to be unboundedly
+ * powerful whilst also being practical. Here, we'll produce a specification for
+ * PowerPlay, which implementations can check for conformance.
  *
  * We use the Coq proof assistant to formalise our specification.
  *)
@@ -9,261 +8,268 @@
 Require Import Util.
 Require Import List.
 Require Import Program.
+Require Import Peano_dec.
 
-(* First we describe the domain that PowerPlay will be working in *)
-Module Type DomainSig.
+(* First we abstract over the domain that PowerPlay will be working in *)
+Module Type DomainSpec.
 
-  (* Problem describes PowerPlay's inputs. These could be, for example,
-   * theorems to prove or robot control decisions to make.
+  (* Problems are the things we want to solve, for example theorems to prove or
+   * robot control decisions to make.
    *)
   Parameter Problem  : Type.
 
-  (* Solution describes PowerPlay's (ideal) output. A Solution is parameterised
-   * by the Problem we asked it to solve.
+  (* Solutions solve problems. The type of each Solution is parameterised by the
+   * particular Problem it solves.
    *
    * Since Solutions are opaque to PowerPlay, implementations should ensure
-   * they are'correct by construction'. In other words, having the type
-   * 'Solution p' should be proof that a value solves p.
+   * they are 'correct by construction'. In other words, having the type
+   * 'Solution p' should be proof that a value solves p; no checking required.
    *)
   Parameter Solution : Problem -> Type.
-End DomainSig.
+End DomainSpec.
 
-(* Next we derive a few definitions *)
-Module Type PPSig (Domain : DomainSig).
+Module SolverF (Domain : DomainSpec).
   Import Domain.
 
-  (* A Solver turns Problems into their Solutions. This is undecidable in
-   * general, so we use 'option' to allow the possibility of failure.
-   *)
-  Definition Solver := forall p, option (Solution p).
-
-  (* A State contains a Solver and a list of Problems it can provably solve.
-   * This is a tuple of (solver, list, proof). The proof says that being in the
-   * list implies that solver can find a Solution.
-   *)
-  Definition State
-          := { sl : Solver * list Problem
-             & let solver   := fst sl in
-               let problems := snd sl in
-                   forall p,
-                          In p problems -> solver p <> None}.
-  Definition stateSolver   (s : State) : Solver       := fst (projT1 s).
-  Definition stateProblems (s : State) : list Problem := snd (projT1 s).
-
-  (* We can always define the trivial State which can't solve anything *)
-  Definition trivial : State.
-    unfold State. refine (existT _ (fun x => None, nil) _).
-
-    (* There are no Problems in an empty list, so 'In p problems' is False *)
-    simpl. intuition.
-  Qed.
-
-  (* 'Improvement s' is a State containing the same Problems as s, plus an
-   * extra one which the Solver in s cannot solve.
-   *)
-  Definition Improvement (s : State) :=
-             {s' : State & exists p, (* p is the new problem *)
-                                  stateProblems s' = p :: (stateProblems s)
-                               /\ stateSolver s p = None}.
-End PPSig.
-
-(* Now we can describe the metaprogramming 'Searcher' *)
-Module Type SearchSig (Domain : DomainSig) (PP : (PPSig Domain)).
-  Import PP.
-
-  (* The key to PowerPlay is a domain-specific Searcher which finds 'better'
-   * Solvers, where 'better' is defined as provably-solving more Problems.
+  (* Solvers turn Problems into Solutions.
    *
-   * Finding Improvements is undecidable so we use an 'option' wrapper again.
+   * We use an 'option' type to allow the possibility of failure. We also give
+   * Solvers a numeric argument, in case they want a 'timeout', which they're
+   * free to ignore.
    *)
-  Parameter Searcher : Type.
+  Definition Solver' := forall p, nat -> option (Solution p).
 
-  (* PowerPlay must be parameterised by a Searcher, since building a Searcher
-   * requires knowledge of the Problem and Solution types.
+  (* All of our Solvers will be monotonic. Increasing their timeout will not
+   * change a solvable Problem into an unsolvable one (although the particular
+   * Solution is allowed to differ).
    *)
-  Parameter searcher : Searcher.
-End SearchSig.
+  Definition Solver := {s : Solver' |
+                        forall p n,
+                               s p n <> None -> s p (S n) <> None}.
+  Definition solver (s : Solver) : Solver' := projT1 s.
+End SolverF.
 
-(* The simplest form of Searcher just turns States into States *)
-Module PPSearch (PP : PPSig) <: SearchSig.
-  Definition Searcher := forall s, option (PP.Improvement s).
-End PPSearch.
+(* Next we abstract over the method of proving self-improvement. *)
+Module Type DominatesSpec (Domain : DomainSpec).
+  Import Domain.
 
-Module PPsearcher (PPUtil
+  (* Instantiate a SolverF for this Domain *)
+  Module SolverImp := SolverF Domain.
+  Import SolverImp.
 
-End PPSig.
-
-(* Now we can define our PowerPlay function, parameterised by a PPSig *)
-Module PP (Sig : PPSig).
-  Import Sig.
-
-  (* Pull new States out of Improvements. We also return a proof that the new
-   * State differs from our argument, in case anyone thinks we're cheating.
+  (* The key to PowerPlay is the abilty to prove that one Solver Dominates
+   * (provably-solves more Problems than) another. Different variants will do
+   * this in different ways, so we abstract over the specifics.
+   *
+   * 'SolvableBy s' contains Problems provably-solvable by Solver s.
    *)
-  Definition impState (s : State)
-                      (i : Improvement s)
-                         : {s' : State | s <> s'}.
-    refine (existT _ (projT1 i) _). intuition. destruct i. destruct e.
-    destruct a. simpl in H. destruct H. destruct s.
-    unfold stateProblems in e. simpl in e. unfold stateSolver in e0.
-    simpl in e0. simpl in e1. destruct x. simpl in e. simpl in e0.
-    simpl in e1. assert (List.In x0 l). rewrite e. intuition.
-    assert (p := e1 x0 H). rewrite e0 in p. inversion p. inversion H0.
+  Parameter SolvableBy : Solver -> nat -> Type.
+  Axiom     In : forall s n, Problem -> SolvableBy s n -> Prop.
+  Arguments In [s n] _ _.
+  Axiom     solvable : forall s n p (sb : SolvableBy s n),
+                       In p sb -> (solver s) p n <> None.
+  Arguments solvable [s n] p sb _ _.
+
+  (* Dominates is a strict superset relationship *)
+  Axiom Dominates : forall s1 s2 n,
+                           SolvableBy s1 n -> SolvableBy s2 n -> Prop.
+  Arguments Dominates [s1 s2 n] _ _.
+
+  Axiom dom_super : forall s1 s2 n p
+                           (sb1 : SolvableBy s1 n)
+                           (sb2 : SolvableBy s2 n),
+                           Dominates sb1 sb2 -> In p sb2 -> In p sb1.
+
+  (* Crucially, if s1 dominates s2, then s1 can solve a Problem s2 can't *)
+  Axiom dom_improve : forall s1 s2 n
+                             (sb1 : SolvableBy s1 n)
+                             (sb2 : SolvableBy s2 n),
+                             Dominates sb1 sb2 ->
+                             exists p,
+                             In p sb1       /\
+                             (solver s1) p n <> None /\
+                             (solver s2) p n =  None.
+End DominatesSpec.
+
+(* Now we describe PowerPlay's internal State *)
+Module Type StateSpec (Domain : DomainSpec) (Dominates : DominatesSpec).
+  Module Dominate := Dominates Domain.
+  Export Dominate.
+  Module SolverImp := SolverF Domain.
+  Export SolverImp.
+
+  Parameter State     : Type.
+  Axiom stateSolver   : State -> Solver.
+  Axiom stateTimeout  : State -> nat.
+  Axiom stateProblems : forall s, SolvableBy (stateSolver  s)
+                                             (stateTimeout s).
+
+  Parameter Improvement : Type.
+  Parameter Searcher    : Type.
+End StateSpec.
+
+Module StateF (Domain : DomainSpec) (Dominates : DominatesSpec) <: StateSpec.
+  Module Dominate := Dominates Domain.
+  Module SolverImp := SolverF Domain.
+  Export Dominate.
+  Export SolverImp.
+
+  (* PowerPlay's current State contains a Solver and some Problems it can
+   * provably-solve with some timout.
+   *)
+  Definition State := {sn : Solver * nat & SolvableBy (fst sn) (snd sn)}.
+
+  (* Useful projections *)
+  Definition stateSolver   (s : State) : Solver
+          := fst (projT1 s).
+
+  Definition stateTimeout  (s : State) : nat
+          := snd (projT1 s).
+
+  Definition stateProblems (s : State) : SolvableBy (stateSolver  s)
+                                                    (stateTimeout s)
+          := projT2 s.
+
+  (* To prove one State Dominates another, we must identify their timeouts *)
+  Definition equal_timeouts (s1 s2 : State) : Prop
+          := stateTimeout s1 = stateTimeout s2.
+
+  Lemma cast_timeouts : forall s1 s2,
+                               equal_timeouts s1 s2
+                            -> (SolvableBy (stateSolver  s1)
+                                           (stateTimeout s1)
+                             *  SolvableBy (stateSolver  s2)
+                                           (stateTimeout s1)).
+    intros. unfold equal_timeouts in H.
+    refine (stateProblems s1, _). rewrite H. exact (stateProblems s2).
   Defined.
-  Arguments impState [s] i.
 
-  (* We give PowerPlay a decreasing numeric argument as a 'timeout', to
-   * ensure termination.
+  Definition dominates (s1 s2 : State) : Prop
+          := exists p, let pair := cast_timeouts s1 s2 p
+                        in Dominates (fst pair) (snd pair).
+
+  (* 'Improvement s' is a State who's Solver Dominates that of s. *)
+  Definition Improvement (s  : State) := {s' : State | dominates s' s}.
+
+  (* In order to improve, PowerPlay needs a domain-specific Searcher to find a
+   * Solver which Dominates the current one.
+   *
+   * Finding Improvements is undecidable so we use an 'option' wrapper and a
+   * timeout again.
+   *)
+  Definition Searcher' := forall s, nat -> option (Improvement s).
+
+  (* Again, our proofs will be easier if Searchers are monotonic (increasing
+   * the timeout never loses an Improvement).
+   *)
+  Definition Searcher := {s : Searcher' |
+                          forall st n,
+                                 s st n <> None -> s st (S n) <> None}.
+  Definition searcher (s : Searcher) : Searcher' := projT1 s.
+End StateF.
+
+(* We require some initial conditions in order to improve *)
+Module Type InitialConditions (Domain   : DomainSpec)
+                              (Dominate : DominatesSpec).
+  Module States := StateSpec Domain Dominate.
+  Import States.
+
+  (* PowerPlay requires a Searcher and an initial State; if SolvableBy wasn't
+   * abstract we could define initial values trivially ('fun _ _ => None' is a
+   * valid Searcher and a valid Solver) but improvements would never be found.
+   *
+   * Hence we take these as parameters.
+   *)
+  Parameter initial_searcher : Searcher.
+  Parameter initial_state    : State.
+End InitialConditions.
+
+(* Now we can define the PowerPlay function *)
+Module PPSpec (Domain   : DomainSpec)
+              (Dominate : DominatesSpec)
+              (Init     : InitialConditions).
+  Module StateImp := StateSpec Domain Dominate.
+  Module InitImp := Init Domain Dominate.
+  Import StateImp.
+  Import InitImp.
+
+  (* We give PowerPlay a decreasing numeric argument as a 'timeout', to ensure
+   * termination. We store its initial value in our State and pass this to our
+   * Solvers, to ensure our States are comparable, and to our Searcher, to
+   * avoid overly-restricting it.
    *)
   Fixpoint PowerPlay' (s  : State)
                       (n  : nat)
-                        : State
+                          : State
         := match n with
                | 0    => s (* Halt *)
                | S n' =>
-           match searcher s with
+           match (searcher initial_searcher) s (stateTimeout s) with
                | None    => s (* No point recursing *)
-               | Some s' => PowerPlay' (projT1 (impState s')) n'
+               | Some s' => PowerPlay' (projT1 s') n'
            end
            end.
-  Definition PowerPlay := PowerPlay' trivial.
-End PP.
+  Definition PowerPlay := PowerPlay' initial_state.
+End PPSpec.
 
-(* One problem with the above specification is that the Searcher can get
- * 'stuck'. Since it is trying to perform an undecidable task, and since it
- * must terminate at some point, there will always be cases where it returns
- * None. When this happens there's no point 'trying again' since it's a pure
- * function, so will just get 'stuck' again.
- * We can mitigate this by using the 'timeout' we give to the PowerPlay
- * function as an extra argument to our Searcher. This extra information allows
- * the Searcher to behave differently, eg. trying alternative branches, while
- * remaining referentially transparent.
+(* The PowerPlay specification above is pretty dumb; it's basically a technique
+ * for augmenting an existing heuristic 'stateSolver initial_state', with a
+ * fixed, existing meta-heuristic 'initial_searcher'.
+ * We get the benefit of having verified plumbing, having the Searcher lets us
+ * get away with a poor Solver, but we still have to write the Searcher itself,
+ * which is a much more difficult task than the plumbing.
+ *
+ * However, now that we've got PowerPlay at our disposal, we can use it write
+ * our Searcher for us! We will now write a modified PowerPlay specification
+ * which can improve its own Searcher, to create a truly self-improving system
+ * which we can bootstrap with a poor Searcher.
  *)
-Module Type PPN.
-  (* Use the definitions as PP *)
-  Parameter Problem : Type.
-  Parameter Solution : Problem -> Type.
-  Definition Solver := forall p, option (Solution p).
-  Require Import List.
-  Definition State
-          := { sl : Solver * list Problem
-             & let solver   := fst sl in
-               let problems := snd sl in
-                   forall p,
-                          In p problems ->
-                          exists s,
-                                 solver p = Some s}.
-  Definition stateSolver   (s : State) : Solver       := fst (projT1 s).
-  Definition stateProblems (s : State) : list Problem := snd (projT1 s).
-  Definition trivial : State.
-    unfold State. exists (fun x => None, nil).
-    simpl. intuition.
-  Qed.
-  Definition Improvement (s : State) :=
-             {s' : State & exists p, (* p is the new problem *)
-                                  stateProblems s' = p :: (stateProblems s)
-                               /\ stateSolver s p = None}.
 
-  Definition impState (s : State) (i : Improvement s) := projT1 i.
-  Arguments impState [s] i.
+(* For PowerPlay to improve its Searcher, we must augment its Types *)
+Module PlusSelf (Domain : DomainSpec) (Dominate : DominatesSpec) <: DomainSpec.
+  Module States := StateSpec Domain Dominate.
+  Import States.
 
-  (* Our Searcher type is parameterised by a timeout *)
-  Definition SearcherN := forall (n : nat) s, option (Improvement s).
-  Parameter searcher : SearcherN.
-
-  (* PowerPlay passes its timeout to the Searcher *)
-  Fixpoint PowerPlayN' (s  : State)
-                       (n  : nat)
-                           : State
-        := match n with
-               | 0 => s (* Halt *)
-               | S n' =>
-           match searcher n' s with
-               | None    => PowerPlayN'           s   n'
-               | Some s' => PowerPlayN' (impState s') n'
-           end
-           end.
-  Definition PowerPlayN := PowerPlayN' trivial.
-End PPN.
-
-(* An interesting special-case occurs when the Problems we're trying to solve
- * are how to make better Searchers. This can be used to make a self-improving
- * Searcher.
- *)
-Module Type PPR.
-  (* We use the same definitions as PP *)
-  Parameter  Problem  :  Type.
-  Parameter  Solution :  Problem -> Type.
-  Definition Solver   := forall p, option (Solution p).
-
-  Require Import List.
-  Definition State
-          := { sl : Solver * list Problem
-             & let solver   := fst sl in
-               let problems := snd sl in
-                   forall p,
-                          In p problems ->
-                          exists s,
-                                 solver p = Some s}.
-  Definition stateSolver   (s : State) : Solver       := fst (projT1 s).
-  Definition stateProblems (s : State) : list Problem := snd (projT1 s).
-
-  Definition Improvement (s : State) :=
-             {s' : State & exists p, (* p is the new problem *)
-                                  stateProblems s' = p :: (stateProblems s)
-                               /\ stateSolver s p = None}.
-
-  Definition impState (s : State) (i : Improvement s) := projT1 i.
-  Arguments impState [s] i.
-
-  Definition Searcher := forall s, option (Improvement s).
-
-  Parameter searcher : Searcher.
-
-  (* By definition, Searchers can only improve Solvers. Hence any
-   * self-improving implementation must have isomorphic Searchers and Solvers.
+  (* PowerPlay improves Solvers, which turn Problems into Solutions. We want it
+   * to improve Searchers, which turn States into Improvements. Hence we must
+   * unify States with Problems and Improvements with Solutions 
    *)
-  Definition Recursive_Condition := Iso Searcher Solver.
-  Parameter  recursive_condition :  Recursive_Condition.
 
-  Lemma se_so : Searcher -> Solver.
-    destruct recursive_condition. auto.
-  Defined.
+  (* We add State to Problem using a sum type. *)
+  Definition Problem := sum Domain.Problem State.
 
-  Lemma so_se : Solver -> Searcher.
-    destruct recursive_condition. auto.
-  Defined.
-
-  (* Not only should Searchers and Solvers be isomorphic, but their domains
-   * (States and Problems) and codomains (Improvements and Solutions) need to
-   * be isomorphic too. We could derive these isomorphisms from
-   * recursive_condition, but since Improvements and Solutions are parameterised
-   * by different types, that gets very messy. Instead, we leave it up to the
-   * implementations, since they'll have concrete types to play with.
+  (* The sum_coalesce function will use Domain.Solution to turn Domain.Problem
+   * values into Types and Improvement to turn State values into Types.
    *)
-  Definition Prob_State := Iso Problem State.
-  Parameter  prob_state :  Prob_State.
+  Definition Solution := sum_coalesce Domain.Solution
+                                      Improvement.
 
-  Lemma probState : Problem -> State.
-    destruct prob_state. auto.
-  Defined.
+  (* We also provide theorems to tell other modules what we've done *)
+  Definition prob_sum : State -> Problem := inr.
+End PlusSelf.
 
-  Lemma stateProb : State -> Problem.
-    destruct prob_state. auto.
-  Defined.
+(* Now we can define our recursive PowerPlay implementation *)
+Module PPRecSpec (Domain : DomainSpec)
+                 (Dominate : DominatesSpec)
+                 (Init : InitialConditions).
+  (* Use an augmented Domain *)
+  Module DomainPlusSelf := PlusSelf Domain Dominate.
+  Module InitImp := Init DomainPlusSelf Dominate.
+  Import InitImp.
 
-  Definition Sol_Imp (p : Problem) := Iso (Solution p)
-                                          (Improvement (probState p)).
-  Parameter  sol_imp  :  forall p, Sol_Imp p.
-
-  Lemma solImp : forall p, Solution p -> Improvement (probState p).
-    intro. destruct (sol_imp p). auto.
-  Defined.
-
-  Lemma impSol : forall p, Improvement (probState p) -> Solution p.
-    intro. destruct (sol_imp p). auto.
-  Defined.
-
+  (* Our augmented domain means that Searchers are a subset of Solvers *)
+  Theorem search_solv_subset : Solver -> Searcher.
+    intro. assert Searcher'. intro. destruct X.
+    assert (p := n (prob_sum s)). (sum_coalesce X (fun _ => None)). unfold Solver. intro. destruct X.
+    assert Searcher'. unfold Searcher'. 
+          
+  Theorem search_solve_iso : exists (f : Searcher -> Solver)
+                                    (g : Solver   -> Searcher),
+                                    inhabited (forall s, f (g s) = s) /\
+                                    inhabited (forall s, g (f s) = s).
+    assert (Searcher -> Solver).
+    unfold Searcher. unfold Solver. intro. destruct X.
+    unfold Solver'. unfold Problem.
   (* solState turns a 'Solution p' into an 'Improvement (probState p)' then
    * extracts the improved State. We also return a proof that we've not cheated
    * by returning 'probState p'.
