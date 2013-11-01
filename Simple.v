@@ -1,6 +1,6 @@
-(* Quick and simple "spike" implementation of PowerPlay *)
+(* Quick and simple "spike" specification of PowerPlay *)
 
-(* Problems and Solutions are provided externally *)
+(* Problems and Solutions are parameters *)
 Parameter Problem  : Type.
 Parameter Solution : Problem -> Type.
 
@@ -11,7 +11,7 @@ Definition Solver := forall p, nat -> option (Solution p).
 Definition Solves (s : Solver) p n: Prop
         := s p n <> None.
 
-(* We can define an initial Solver which can't solve anything *)
+(* We can define a trivial Solver and prove it can't solve anything *)
 Definition trivial_solver : Solver
         := fun _ _ => None.
 
@@ -19,7 +19,7 @@ Theorem trivial : forall p n, ~(Solves trivial_solver p n).
   intuition.
 Qed.
 
-(* One Solver Dominates another if it solves all the same Problems and more *)
+(* One Solver Dominates another if it Solves all the same Problems and more *)
 Definition Dominates (s1 s2 : Solver) : Prop
         := (forall p n, Solves s2 p n -> Solves s1 p n) /\
           ~(forall p n, Solves s1 p n -> Solves s2 p n).
@@ -31,11 +31,11 @@ Definition Searcher := forall s1 (n : nat),
 (* We take a Searcher an a parameter *)
 Parameter searcher : Searcher.
 
-(* We can relax the Dominates condition to allow no improvement *)
+(* We can relax the Dominates condition to only prevent regressions *)
 Definition NoWorse s1 s2 : Prop
         := Dominates s1 s2 \/ s1 = s2.
 
-(* We can make a regression-free Searcher by defaulting to the input *)
+(* By returning out input Solver instead of None, a Searcher becomes NoWorse *)
 Definition searcher' s1 (n : nat) : {s2 | NoWorse s2 s1}.
   (* Propose a value for s2 *)
   refine (existT _
