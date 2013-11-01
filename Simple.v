@@ -35,7 +35,7 @@ Parameter searcher : Searcher.
 Definition NoWorse s1 s2 : Prop
         := Dominates s1 s2 \/ s1 = s2.
 
-(* By returning out input Solver instead of None, a Searcher becomes NoWorse *)
+(* By returning our input Solver instead of None, a Searcher becomes NoWorse *)
 Definition searcher' s1 (n : nat) : {s2 | NoWorse s2 s1}.
   (* Propose a value for s2 *)
   refine (existT _
