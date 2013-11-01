@@ -12,6 +12,7 @@ The repository is layed out as follows:
   * Classes.v  Rewrite of Arch.v using Coq typeclasses, although this now mostly
                contains regular inductive types
   * Expr.v     Initial attempt at defining a reflective Coq-in-Coq implementation
+  * Simple.v   A simple, standalone PowerPlay specification
   * Util.v     Generic utility functions and theorems
 
 [1] http://www.idsia.ch/~juergen/interest.html
