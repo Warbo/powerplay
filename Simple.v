@@ -1,4 +1,4 @@
-(* Quick and direty "spike" implementation of PowerPlay *)
+(* Quick and simple "spike" implementation of PowerPlay *)
 
 (* Problems and Solutions are provided externally *)
 Parameter Problem  : Type.
