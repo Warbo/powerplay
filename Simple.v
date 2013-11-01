@@ -1,5 +1,8 @@
 (* Quick and simple "spike" specification of PowerPlay *)
 
+(* Contains exponential function*)
+Require Import NPeano.
+
 (* Problems and Solutions are parameters *)
 Parameter Problem  : Type.
 Parameter Solution : Problem -> Type.
@@ -64,14 +67,14 @@ CoInductive NoWorseStream s1 : Type :=
 
 (* PowerPlay makes a NoWorseStream by searching with increasing timeouts *)
 CoFixpoint powerplay' s n : NoWorseStream s
-        := let found := searcher' s n in
+        := let found := searcher' s (2 ^ n) in
            let s'    := projT1 found  in
            let proof := projT2 found  in
                nwsCons  s
                         s'
                         proof
-                       (powerplay' s' (2 * n)).
+                       (powerplay' s' (S n)).
 
 (* Set initial values *)
 Definition powerplay : NoWorseStream trivial_solver
-        := powerplay' trivial_solver 1.
+        := powerplay' trivial_solver 0.
