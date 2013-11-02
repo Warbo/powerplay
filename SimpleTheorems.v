@@ -26,7 +26,7 @@ Qed.
 
 (* NoWorse is transitive *)
 Theorem no_worse_trans {D : Domain} :
-        forall s1 s2 s3,
+        forall {s1 s2 s3},
                NoWorse s1 s2 -> NoWorse s2 s3 -> NoWorse s1 s3.
   (* Destruct our NoWorse arguments and solve each case *)
   intros. destruct H. destruct H0.
@@ -42,28 +42,22 @@ Theorem no_worse_trans {D : Domain} :
 Qed.
 
 (* The next Solver in a NoWorseStream is NoWorse than the previous *)
-CoFixpoint nws_no_worse
-Theorem nws_no_worse {D : Domain} :
-        forall {s} n (nws : NoWorseStream s),
-               NoWorse (get_solver (S n) nws)
-                       (get_solver    n  nws)
-  intros. destruct n. destruct nws. auto.
-  destruct nws. destruct nws. simpl.
+Fixpoint nws_no_worse {D : Domain} {s}
+                       n (nws : NoWorseStream s)
+      :  NoWorse (get_solver (S n) nws)
+                 (get_solver    n  nws)
+      := match n, nws with
+             | 0, nwsCons _ p _ => p
+             | S n', nwsCons _ _ nws' => nws_no_worse n' nws'
+         end.
 
-(* Solvers in NoWorseStream s are NoWorse than s *)
-Theorem get_solver_no_worse_0 {D : Domain} :
+(* All Solvers in a NoWorseStream s are NoWorse than s *)
+Theorem get_solver_no_worse {D : Domain} :
         forall s n (nws : NoWorseStream s),
                NoWorse (get_solver n nws)
-                       s.
+                        s.
   intros. induction n. destruct nws. simpl.
   exact (no_worse_refl).
-  unfold 
+  assert (no_worse_next := nws_no_worse n nws).
+  apply (no_worse_trans no_worse_next IHn).
 Qed.
-
-Theorem get_solver_no_worse_S {D : Domain} :
-        forall s (nws : NoWorseStream s) n,
-               NoWorse (get_solver (S n) nws)
-                       (get_solver    n  nws).
-  intros. induction n. destruct nws. auto.
-  destruct nws. simpl. IHn. simpl. destruct nws.
-  unfold NoWorse. destruct nws. get_solver.
