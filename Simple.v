@@ -18,21 +18,25 @@ Definition Solver {D : Domain} := forall p,
 Definition Solves {D : Domain} (s : Solver) p n: Prop
         := s p n <> None.
 
-(* We can define a trivial Solver and prove it can't solve anything *)
-Definition trivial_solver {D : Domain} : Solver
-        := fun _ _ => None.
-
 (* One Solver Dominates another if it Solves all the same Problems and more *)
 Definition Dominates {D : Domain} (s1 s2 : Solver) : Prop
         := (forall p n, Solves s2 p n -> Solves s1 p n) /\
           ~(forall p n, Solves s1 p n -> Solves s2 p n).
 
-(* Searchers might find a Solver which Dominates another within a timeout *)
-Definition Searcher {D : Domain} := forall s1 (n : nat),
-                                           option {s2 | Dominates s2 s1}.
+(* Solvers are opaque, but we need a transparent representation *)
+Class Lang {D : Domain} : Type := {
+  AST       : Type;
+  interpret : AST -> Solver
+}.
+
+(* Searchers look for a Solver AST which Dominates another *)
+Definition Searcher {D : Domain} {L : Lang}
+        := forall ast1 (n : nat),
+                  option {ast2 | Dominates (interpret ast2)
+                                           (interpret ast1)}.
 
 (* Our Searcher is a parameter, so we wrap it in a Class *)
-Class GivenSearcher {D : Domain} := {
+Class GivenSearcher {D : Domain} {L : Lang} := {
   searcher : Searcher
 }.
 
@@ -41,23 +45,25 @@ Definition NoWorse {D : Domain} s1 s2 : Prop
         := Dominates s1 s2 \/ s1 = s2.
 
 (* By returning our input Solver instead of None, a Searcher becomes NoWorse *)
-Definition searcher' {D : Domain} {G : GivenSearcher}
-                     s1 (n : nat) : {s2 | NoWorse s2 s1}.
-  (* Propose a value for s2 *)
+Definition searcher' {D : Domain} {L : Lang} {G : GivenSearcher}
+                     ast1 (n : nat)
+        :  {ast2 | NoWorse (interpret ast2)
+                           (interpret ast1)}.
+  (* Propose a value for ast2 *)
   refine (existT _
-                 (match searcher s1 n with
-                      | None    => s1
+                 (match searcher ast1 n with
+                      | None    => ast1
                       | Some s' => projT1 s'
                   end)
                  _).
 
-  (* Prove by case-analysis on 'searcher s1 n' that s2 is NoWorse *)
-  destruct (searcher s1 n).
+  (* Prove by case-analysis on 'searcher ast1 n' that ast2 is NoWorse *)
+  destruct (searcher ast1 n).
 
-  (* searcher s1 n = Some s. Solve by extracting the proof from s *)
+  (* searcher ast1 n = Some s. Solve by extracting the proof from s *)
   exact (or_introl (projT2 s)).
 
-  (* searcher s1 n = None. Solve trivially *)
+  (* searcher ast1 n = None. Solve trivially *)
   exact (or_intror eq_refl).
 Defined.
 
@@ -79,17 +85,18 @@ Fixpoint get_solver {D : Domain} {s1} (n : nat)
   end.
 
 (* PowerPlay makes a NoWorseStream by searching with increasing timeouts *)
-CoFixpoint powerplay' {D : Domain} {G : GivenSearcher}
-                      s n : NoWorseStream s
-        := let found := searcher' s (2 ^ n) in
-           let s'    := projT1 found  in
+CoFixpoint powerplay' {D : Domain} {L :Lang} {G : GivenSearcher}
+                      ast n : NoWorseStream (interpret ast)
+        := let found := searcher' ast (2 ^ n) in
+           let ast'  := projT1 found  in
            let proof := projT2 found  in
-               nwsCons  s
-                        s'
+               nwsCons  (interpret ast)
+                        (interpret ast')
                         proof
-                       (powerplay' s' (S n)).
+                       (powerplay' ast' (S n)).
 
 (* Set initial values *)
-Definition powerplay {D : Domain} {G : GivenSearcher}
-        :  NoWorseStream trivial_solver
-        := powerplay' trivial_solver 0.
+Definition powerplay {D : Domain} {L : Lang} {G : GivenSearcher}
+                      ast
+        :  NoWorseStream (interpret ast)
+        := powerplay' ast 0.

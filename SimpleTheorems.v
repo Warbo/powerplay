@@ -1,12 +1,6 @@
 (* Useful properties of our Simple.v specification *)
 Require Import Simple.
 
-(* The trivial Solver can't solve any Problem *)
-Theorem trivial {D : Domain} :
-        forall p n, ~(Solves trivial_solver p n).
-  intuition.
-Qed.
-
 (* Dominates is transitive *)
 Theorem dom_trans {D : Domain} :
         forall {s1 s2 s3},
