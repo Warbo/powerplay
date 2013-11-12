@@ -80,7 +80,7 @@ Fixpoint get_solver {D : Domain} {s1} (n : nat)
   match n with
       | 0 => s1
       | S n' => match nws with
-                    | nwsCons _ _ nws' => get_solver n' nws'
+                    | nwsCons _ _ _ nws' => get_solver n' nws'
                 end
   end.
 
@@ -96,7 +96,6 @@ CoFixpoint powerplay' {D : Domain} {L :Lang} {G : GivenSearcher}
                        (powerplay' ast' (S n)).
 
 (* Set initial values *)
-Definition powerplay {D : Domain} {L : Lang} {G : GivenSearcher}
-                      ast
+Definition powerplay (D : Domain) (L : Lang) (G : GivenSearcher) ast
         :  NoWorseStream (interpret ast)
         := powerplay' ast 0.

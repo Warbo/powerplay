@@ -40,9 +40,9 @@ Fixpoint nws_no_worse {D : Domain} {s}
                        n (nws : NoWorseStream s)
       :  NoWorse (get_solver (S n) nws)
                  (get_solver    n  nws)
-      := match n, nws with
-             | 0, nwsCons _ p _ => p
-             | S n', nwsCons _ _ nws' => nws_no_worse n' nws'
+      := match n,    nws with
+             | 0,    nwsCons _ _ p _    => p
+             | S n', nwsCons _ _ _ nws' => nws_no_worse n' nws'
          end.
 
 (* All Solvers in a NoWorseStream s are NoWorse than s *)
