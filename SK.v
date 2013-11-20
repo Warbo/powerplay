@@ -186,12 +186,14 @@ Instance skDom : Domain := {
 }.
 
 (* We can encode arbitrary problem solvers using combinators *)
-Definition sk_default (x : SK 0) (p : Problem) (n : nat)
-         : option {na : nat * SK 0 & true_in (fst na) (cA p (snd na))}.
-  destruct (iterate (cA (cA (cA p x) (cV     F1  : SK 2))
-                                     (cV (FS F1) : SK 2)) n == (cV F1 : SK 2)).
+Definition sk_interpret (solver : SK 0) (problem : SK 0) (n : nat)
+         : option {na : nat * SK 0 & true_in (fst na) (cA problem (snd na))}.
+  set (answer := iterate (cA solver problem) n).
+  destruct (iterate (cA (cA (cA problem answer)
+                            (cV     F1  : SK 2))
+                            (cV (FS F1) : SK 2)) n == (cV F1 : SK 2)).
   apply Some. unfold true_in. unfold equiv in e.
-  refine (existT _ (n, x) _). auto.
+  refine (existT _ (n, answer) _). auto.
   exact None.
 Defined.
 
@@ -199,7 +201,7 @@ Instance skLang : Lang := {
   (* Solvers are written as closed combinators *)
   AST       := SK 0;
   (* We can interpret an AST by applying the problem to it and reducing *)
-  interpret := sk_default
+  interpret := sk_interpret
 }.
 
 Instance skSearcher : GivenSearcher := {
