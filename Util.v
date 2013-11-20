@@ -1,101 +1,49 @@
-(* Utility functions *)
-Require Import Program.
+(* A very useful library *)
+Require Export Program.
 
-Inductive Iso (a b : Type) : Type :=
-  | iso : forall (ab  : a -> b)
-                 (ba  : b -> a)
-                 (aba : forall x, ab (ba x) = x)
-                 (bab : forall x, ba (ab x) = x),
-                 Iso a b.
-Arguments iso [a b] ab ba aba bab.
+(* Useful for proving things aren't equal *)
+Ltac neq :=
+  apply right; intro; dependent destruction H;
+  match goal with
+        [ c : ?e -> False |- False ] => try (apply (c eq_refl))
+  end.
 
-Definition swapIso (a b : Type)
-                   (i   : Iso a b)
-                        : Iso b a
-        := match i with
-               | iso ab ba aba bab => iso ba ab bab aba
-           end.
-Arguments swapIso [a b] i.
+(* Provide finite sets, with the name "fin" rather than "t" *)
+Require Export Fin.
+Definition fin := Fin.t.
 
-Definition castA (a b : Type) (i : Iso a b) : a -> b
-        := match i with
-               | iso ab _ _ _ => ab
-           end.
-Arguments castA [a b] i _.
-
-Definition castB (a b : Type) (i : Iso a b) : b -> a
-        := match i with
-               | iso _ ba _ _ => ba
-           end.
-Arguments castB [a b] i _.
-
-Definition uwa : forall a b (i : Iso a b)
-                        f x,
-                        f x -> f (castB i (castA i x)).
-  intros. destruct i. simpl. rewrite (bab x). auto.
-Defined.
-Arguments uwa [a b] i f x _.
-
-Definition uwb : forall a b (i : Iso a b)
-                        f x,
-                        f (castB i (castA i x)) -> f x.
-  intro. intro. intro. intro. intro. destruct i. simpl.
-  rewrite (bab x). exact id.
-Defined.
-Arguments uwb [a b] i f x _.
-
-Definition uwa' : forall a b (i : Iso a b)
-                         f x,
-                         f x -> f (castA i (castB i x)).
-  intros. unfold castA. unfold castB. destruct i. rewrite aba. auto.
-Defined.
-Arguments uwa' [a b] i f x _.
-
-Definition uwb' : forall a b (i : Iso a b)
-                         f x,
-                         f (castA i (castB i x)) -> f x.
-  intros. unfold castA in X. unfold castB in X. destruct i.
-  rewrite aba in X. auto.
-Defined.
-Arguments uwb' [a b] i f x _.
-
-Definition iso_f {a b : Type}
-                 (i   : Iso a b)
-                 (f   : a -> Type)
-                 (x   : a)
-                      : Iso (f x) (f (castB i (castA i x))).
-  refine (iso (uwa i f x) (uwb i f x) _ _). intro.
-
-  unfold uwa. unfold uwb. destruct i. unfold eq_rect_r.
-  destruct (bab x). compute. auto.
-
-  intro. unfold uwb. unfold uwa. destruct i. unfold eq_rect_r.
-  rewrite (bab x). compute. auto.
+(* Decidable equality of elements of the same finite set *)
+Require Export EquivDec.
+Fixpoint fin_eq {n} (x y : fin n) : {x === y} + {x =/= y}.
+  (* Case x = F1 *)
+  intros. compute. destruct x.
+    (* Case y = F1 *)
+    dependent destruction y. apply left. auto.
+    (* Case y = FS y' *)
+    neq.
+  (* Case x = FS x' *)
+    (* Case y = F1 *)
+    dependent destruction y. neq.
+    (* Case y = FS y' *)
+      (* Case x' = y' *)
+      destruct (fin_eq n x y). apply left. rewrite e. auto.
+      (* Case x' <> y' *)
+      compute in c. neq.
 Defined.
 
-Definition optionMap {i o : Type} (x : option i) (f : i -> o) : option o
-        := match x with
-               | None    => None
-               | Some x' => Some (f x')
-           end.
+Instance EqFin {n} : EqDec (fin n) eq.
+  unfold EqDec. intros. apply fin_eq.
+Defined.
 
-Theorem optionMapComposes :
-        forall {a b c} (f : a -> b) (g : b -> c) x,
-               optionMap (optionMap x f) g = optionMap x (compose g f).
-  intros. unfold optionMap. destruct x. unfold compose. auto. auto.
-Qed.
-
-Definition sum_coalesce {il ir o : Type}
-                        (f       : il -> o)
-                        (g       : ir -> o)
-                        (i       : sum il ir)
-                                 : o
-        := match i with
-               | inl x => f x
-               | inr x => g x
-           end.
-
-Fixpoint iterate {A} n f (i : A) := match n with
-                                        | 0    => i
-                                        | S n' => iterate n' f (f i)
-                                    end.
+(* Decidable equality of elements in arbitrary finite sets ('pointed' types) *)
+Instance EqFinPt : EqDec {n : nat & fin n} eq.
+  unfold EqDec. compute. intros. destruct x. destruct y.
+  (* Case x = x0 *)
+  destruct (x == x0). compute in e. dependent destruction e.
+    (* Case t = t0 *)
+    destruct (t == t0). apply left. rewrite e. auto.
+    (* Case t <> t0 *)
+    compute in c. neq.
+  (* Case x <> x0 *)
+  compute in c. neq.
+Defined.

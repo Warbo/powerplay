@@ -1,35 +1,7 @@
 (* Use SK calculus as a general problem solving framework *)
-Require Import EquivDec.
 Require Import Omega.
-Require Import Program.
 Require Import Simple.
-Require Import Fin.
-Definition fin := Fin.t.
-
-Fixpoint fin_eq {n} (x y : fin n) : {x === y} + {x =/= y}.
-  intros. unfold EqDec. intros. compute. destruct x.
-  dependent destruction y. apply left. auto.
-  apply right. intuition. inversion H.
-  dependent destruction y. apply right. intuition. inversion H.
-  destruct (fin_eq n x y). apply left. rewrite e. auto.
-  apply right. intros. dependent destruction H. compute in c. apply c.
-  auto.
-Defined.
-
-Instance EqFin {n} : EqDec (fin n) eq.
-  unfold EqDec. intros. apply fin_eq.
-Defined.
-
-(* Pointed representation *)
-Instance EqFinPt : EqDec {n : nat & fin n} eq.
-  unfold EqDec. intros. destruct x. destruct y.
-  destruct (x == x0). compute in e. dependent destruction e.
-  destruct (f == f0). apply left. rewrite e. compute. auto.
-  apply right. compute. intro. compute in c. dependent destruction H.
-  apply (c eq_refl).
-  apply right. compute. intro. dependent destruction H. compute in c.
-  apply (c eq_refl).
-Defined.
+Require Import Util.
 
 (* Combinators, with meta-language variables *)
 Inductive SK : nat -> Type :=
@@ -63,7 +35,7 @@ Fixpoint sk_weaken_n {n m} (c : SK n) : n <= m -> SK m.
 Defined.
 
 (* Projection functions *)
-(*Definition sk_split {n} (c : SK n) : (SK n * SK n).
+Definition sk_split {n} (c : SK n) : (SK n * SK n).
   dependent destruction c. exact (cS, cS). exact (cS, cS).
   exact (cS, cS). refine (sk_weaken_n c1 _, sk_weaken_n c2 _).
   apply Max.le_max_l. apply Max.le_max_r.
@@ -77,12 +49,6 @@ Lemma split_join :
 Qed.
 
 Definition sk_index {n} (c : SK n) := n.
-*)
-Ltac sk_neq :=
-  apply right; intro; dependent destruction H;
-  match goal with
-        [ c : ?e -> False |- False ] => try (apply (c eq_refl))
-  end.
 
 (* Decidable equality of SK combinators, in pointed form *)
 Fixpoint sk_eq {n m} (x : SK n) (y : SK m) :
@@ -94,40 +60,40 @@ Fixpoint sk_eq {n m} (x : SK n) (y : SK m) :
       (* Case y = cS *)
       destruct y. apply left. rewrite e. auto.
       (* Case y = cK *)
-      sk_neq.
+      neq.
       (* Case y = cV f *)
-      sk_neq.
+      neq.
       (* Case y = cA y1 y2 *)
-      sk_neq.
+      neq.
     (* Case x = cK *)
       (* Case y = cS *)
-      destruct y. sk_neq.
+      destruct y. neq.
       (* Case y = cK *)
       apply left. rewrite e. auto.
       (* Case y = cV f *)
-      sk_neq.
+      neq.
       (* Case y = cA y1 y2 *)
-      sk_neq.
+      neq.
     (* Case x = cV f *)
       (* Case y = cS *)
-      destruct y. rewrite <- e. sk_neq.
+      destruct y. rewrite <- e. neq.
       (* Case y = cK *)
-      rewrite <- e. sk_neq.
+      rewrite <- e. neq.
       (* Case y = cV f0 *)
         (* Case f = f0 *)
         destruct (existT fin n f == existT fin n0 f0). compute in e0.
         dependent destruction e0. apply left. auto.
         (* Case f <> f0 *)
-        compute in c. sk_neq.
+        compute in c. neq.
       (* Case y = cA y1 y2 *)
-      sk_neq.
+      neq.
     (* Case x = cA x1 x2 *)
       (* Case y = cS *)
-      destruct y. sk_neq.
+      destruct y. neq.
       (* Case y = cK *)
-      sk_neq.
+      neq.
       (* Case y = cV f *)
-      sk_neq.
+      neq.
       (* Case y = cA y1 y2 *)
         (* Case x1 = y1 *)
         destruct (sk_eq n n0 x1 y1). compute in e0.
@@ -137,13 +103,13 @@ Fixpoint sk_eq {n m} (x : SK n) (y : SK m) :
           dependent destruction e0.
           apply left. auto.
           (* Case x2 <> y2 *)
-          compute in c. sk_neq. inversion H.
+          compute in c. neq. inversion H.
           dependent destruction H3. apply (c eq_refl).
         (* Case x1 <> y1 *)
-        unfold equiv in e. compute in c. sk_neq. inversion H.
+        unfold equiv in e. compute in c. neq. inversion H.
         dependent destruction H4. apply (c eq_refl).
   (* Case n <> m *)
-  compute. compute in c. sk_neq.
+  compute. compute in c. neq.
 Defined.
 
 Instance SKEqPt : EqDec {n : nat & SK n} eq.
