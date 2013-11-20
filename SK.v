@@ -177,23 +177,24 @@ Definition true_in n (c : SK 0) : Prop
         := iterate (cA (cA c (cV     F1  : SK 2))
                              (cV (FS F1) : SK 2)) n = (cV F1 : SK 2).
 
-(* We can encode arbitrary problem domains using combinators *)
+(* We can encode arbitrary problem domains using combinators and timeouts *)
 Instance skDom : Domain := {
   (* Problems are closed combinators *)
-  Problem    := SK 0;
+  Problem    := (SK 0 * nat);
   (* Solutions are (t, a) pairs where (cA p a) reduces to true in t steps *)
-  Solution p := {na : nat * SK 0 & true_in (fst na) (cA p (snd na))}
+  Solution p := {a : SK 0 & true_in (snd p) (cA (fst p) a)}
 }.
 
 (* We can encode arbitrary problem solvers using combinators *)
-Definition sk_interpret (solver : SK 0) (problem : SK 0) (n : nat)
-         : option {na : nat * SK 0 & true_in (fst na) (cA problem (snd na))}.
-  set (answer := iterate (cA solver problem) n).
-  destruct (iterate (cA (cA (cA problem answer)
+Definition sk_interpret (solver : SK 0) (problem : Problem) (n : nat)
+         : option {a : SK 0 & true_in (snd problem) (cA (fst problem) a)}.
+  set (answer := iterate (cA solver (fst problem)) n).
+  destruct (iterate (cA (cA (cA (fst problem) answer)
                             (cV     F1  : SK 2))
-                            (cV (FS F1) : SK 2)) n == (cV F1 : SK 2)).
+                            (cV (FS F1) : SK 2))
+                    (snd problem) == (cV F1 : SK 2)).
   apply Some. unfold true_in. unfold equiv in e.
-  refine (existT _ (n, answer) _). auto.
+  refine (existT _ answer _). auto.
   exact None.
 Defined.
 
@@ -203,6 +204,15 @@ Instance skLang : Lang := {
   (* We can interpret an AST by applying the problem to it and reducing *)
   interpret := sk_interpret
 }.
+
+(* We will use Levin Search for self-improvement *)
+
+(* List all combinators of a given size *)
+Fixpoint decode_all n := match n with
+| 0 => []
+| 1 => [cS ; cK]
+
+
 
 Instance skSearcher : GivenSearcher := {
 }.
