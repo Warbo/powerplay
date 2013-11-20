@@ -14,6 +14,8 @@ The repository is layed out as follows:
   * Expr.v     Initial attempt at defining a reflective Coq-in-Coq
                implementation
   * Simple.v   A simple, standalone PowerPlay specification
+  * SK.v       A (currently unfinished) PowerPlay implementation using SK
+               combinatory logic
   * Sqrt.v     Straightforward implementation of the Simple.v specification for
                finding square roots in lookup tables
   * Util.v     Generic utility functions and theorems
