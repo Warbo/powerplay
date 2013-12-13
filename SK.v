@@ -1,194 +1,250 @@
-(* Use SK calculus as a general problem solving framework *)
+(* Implementation of SK combinator calculus *)
 Require Import Omega.
-Require Import Simple.
 Require Import Util.
+Require Import Program.
 
 (* Combinators, with meta-language variables *)
-Inductive SK : nat -> Type :=
+Inductive SK : Type :=
   (* S and K combinators *)
-  | cS : forall {n}, SK n
-  | cK : forall {n}, SK n
+  | cS : SK
+  | cK : SK
   (* Meta-language variable *)
-  | cV : forall {n}, fin n -> SK n
+  | cV : nat -> SK
   (* Function application *)
-  | cA : forall {n m}, SK n -> SK m -> SK (max n m).
+  | cA : SK -> SK -> SK.
 
-(* Weakening *)
-Lemma suc_fin {n} (c : SK (1 + n)) : SK (S n).
+(* Simple measures *)
+Fixpoint sk_size c : nat
+  := match c with
+         | cS     => 1
+         | cK     => 1
+         | cV _   => 1
+         | cA l r => sk_size l + sk_size r
+     end.
+
+Theorem sk_sizeT1 : sk_size cS = 1.
   auto.
-Defined.
-
-Fixpoint sk_weaken {n} (c : SK n) : SK (S n)
-      := match c with
-             | cS     => cS
-             | cK     => cK
-             | cV f   => suc_fin (cV (R 1 f))
-             | cA l r => cA (sk_weaken l) (sk_weaken r)
-         end.
-
-Fixpoint sk_weaken_n {n m} (c : SK n) : n <= m -> SK m.
-  intros. destruct c. exact cS. exact cK.
-  rewrite (le_plus_minus n m H). apply cV. rewrite plus_comm.
-  apply (R (m - n) f). rewrite <- (Max.max_idempotent m).
-  apply (cA (sk_weaken_n n  m c1 (Max.max_lub_l n m0 m H))
-            (sk_weaken_n m0 m c2 (Max.max_lub_r n m0 m H))).
-Defined.
-
-(* Projection functions *)
-Definition sk_split {n} (c : SK n) : (SK n * SK n).
-  dependent destruction c. exact (cS, cS). exact (cS, cS).
-  exact (cS, cS). refine (sk_weaken_n c1 _, sk_weaken_n c2 _).
-  apply Max.le_max_l. apply Max.le_max_r.
-Defined.
-
-Lemma split_join :
-      forall {n m} (l : SK n) (r : SK m),
-             sk_weaken_n l (Max.le_max_l n m) = (fst (sk_split (cA l r)))
-          /\ sk_weaken_n r (Max.le_max_r n m) = (snd (sk_split (cA l r))).
-  intros. simpl. auto.
 Qed.
 
-Definition sk_index {n} (c : SK n) := n.
-
-(* Decidable equality of SK combinators, in pointed form *)
-Fixpoint sk_eq {n m} (x : SK n) (y : SK m) :
-         {existT SK n x === existT SK m y} + {existT SK n x =/= existT SK m y}.
-  (* Case n = m *)
-  compute. destruct (n == m).
-    (* Case x = cS *)
-    dependent destruction x.
-      (* Case y = cS *)
-      destruct y. apply left. rewrite e. auto.
-      (* Case y = cK *)
-      neq.
-      (* Case y = cV f *)
-      neq.
-      (* Case y = cA y1 y2 *)
-      neq.
-    (* Case x = cK *)
-      (* Case y = cS *)
-      destruct y. neq.
-      (* Case y = cK *)
-      apply left. rewrite e. auto.
-      (* Case y = cV f *)
-      neq.
-      (* Case y = cA y1 y2 *)
-      neq.
-    (* Case x = cV f *)
-      (* Case y = cS *)
-      destruct y. rewrite <- e. neq.
-      (* Case y = cK *)
-      rewrite <- e. neq.
-      (* Case y = cV f0 *)
-        (* Case f = f0 *)
-        destruct (existT fin n f == existT fin n0 f0). compute in e0.
-        dependent destruction e0. apply left. auto.
-        (* Case f <> f0 *)
-        compute in c. neq.
-      (* Case y = cA y1 y2 *)
-      neq.
-    (* Case x = cA x1 x2 *)
-      (* Case y = cS *)
-      destruct y. neq.
-      (* Case y = cK *)
-      neq.
-      (* Case y = cV f *)
-      neq.
-      (* Case y = cA y1 y2 *)
-        (* Case x1 = y1 *)
-        destruct (sk_eq n n0 x1 y1). compute in e0.
-        dependent destruction e0.
-          (* Case x2 = y2 *)
-          destruct (sk_eq m0 m x2 y2). compute in e0.
-          dependent destruction e0.
-          apply left. auto.
-          (* Case x2 <> y2 *)
-          compute in c. neq. inversion H.
-          dependent destruction H3. apply (c eq_refl).
-        (* Case x1 <> y1 *)
-        unfold equiv in e. compute in c. neq. inversion H.
-        dependent destruction H4. apply (c eq_refl).
-  (* Case n <> m *)
-  compute. compute in c. neq.
-Defined.
-
-Instance SKEqPt : EqDec {n : nat & SK n} eq.
-  unfold EqDec. intros. destruct x. destruct y. exact (sk_eq s s0).
-Defined.
-
-(* Decidable equality of combinators *)
-Instance SKEq {n} : EqDec (SK n) eq.
-  unfold EqDec. intros. destruct (sk_eq x y).
-  compute in e. dependent destruction e. apply left. compute. auto.
-  compute in c. apply right. compute. intro. dependent destruction H.
-  apply (c eq_refl).
-Defined.
-
-(* Application never reduces an index *)
-(*Theorem sk_inc :
-        forall {n m} (l : SK n) (r : SK m),
-               sk_index l <= sk_index (cA l r) /\
-               sk_index r <= sk_index (cA l r).
-  intros. unfold sk_index. apply conj.
-  apply Max.le_max_l. apply Max.le_max_r.
+Theorem sk_sizeT2 l r : sk_size (cA l r) = sk_size l + sk_size r.
+  auto.
 Qed.
-*)
 
-Definition sk_step' {n} (c : SK n) : {m : nat & SK m}
-        := match c with
-               |     cA (cA cK x) y    => existT SK _ x
-               | cA (cA (cA cS x) y) z => existT SK _ (cA (cA x z) (cA y z))
-               | _                     => existT SK _ c
-           end.
+(* Decidable equality of SK combinators *)
+Program Fixpoint sk_eq (x y : SK) : {x === y} + {x =/= y}
+  := match x,        y        with
+         | cS,       cS       => left _
+         | cK,       cK       => left _
+         | cV n,     cV m     => match n == m with
+                                     | left  _ => left  _
+                                     | right _ => right _
+                                 end
+         | cA l1 r1, cA l2 r2 => match sk_eq l1 l2, sk_eq r1 r2 with
+                                     | left _, left _ => left _
+                                     | _,      _      => right _
+                                 end
+         | _,        _        => right _
+     end.
 
-Definition sk_step {n} (c : SK n) : SK n.
-  assert (projT1 (sk_step' c) <= n). dependent destruction c.
-  auto. auto. auto. simpl. dependent destruction c1.
-  auto. auto. auto. dependent destruction c1_1. auto.
-  simpl. replace (max n m0) with (max m0 n). rewrite <- Max.max_assoc.
-  apply Max.le_max_l. apply Max.max_comm. auto.
-  destruct c1_1_1. simpl.
-  rewrite <- Max.max_assoc. replace (max m0 m) with (max m m0).
-  replace (max m (max m m0)) with (max (max m m) m0).
-  rewrite Max.max_idempotent.
-  replace (max (max n m1) m0) with (max n (max m1 m0)).
-  replace (max (max n (max m1 m0)) m) with (max n (max (max m1 m0) m)).
-  replace (max (max m1 m0) m) with (max m1 (max m m0)).
-  apply Max.le_max_r. replace (max m m0) with (max m0 m).
-  apply Max.max_assoc. apply Max.max_comm.
-  apply Max.max_assoc. apply Max.max_assoc.
-  rewrite <- Max.max_assoc. auto.
-  apply Max.max_comm.
-  auto.
-  auto.
-  auto.
-  apply (sk_weaken_n (projT2 (sk_step' c)) H).
+Next Obligation. Proof.
+  destruct (H eq_refl eq_refl). auto.
 Defined.
 
-(* Iteration *)
-Fixpoint iterate {m} (c : SK m) n : SK m
+Next Obligation. Proof.
+  dependent destruction y.
+    apply H3. auto.
+    apply H. auto.
+    apply (H1 n n). auto.
+    apply (H2 y1 y2 y1 y2). auto.
+Qed.
+
+Ltac sk_tac := unfold complement, equiv; program_simpl; deqs.
+Solve Obligations with sk_tac.
+
+Instance SKEq : EqDec SK eq := sk_eq.
+
+Theorem sk_eq_refl (c : SK) : c === c.
+  destruct (c == c); [deqs..].
+Qed.
+
+Theorem sk_eq_trans (a b c : SK) : a === b -> b === c -> a === c.
+  ddeqs.
+Qed.
+
+(* Beta reduction *)
+Program Definition sk_step (c : SK) : SK
+  := match c with
+         |     cA (cA cK x) y    => x
+         | cA (cA (cA cS x) y) z => cA (cA x z) (cA y z)
+         | _                     => c
+     end.
+
+Solve Obligations with sk_tac.
+
+Theorem sk_stepT1 : forall x y, sk_step (cA (cA cK x) y) = x.
+  auto.
+Qed.
+
+Theorem sk_stepT2 : forall x, ~(exists y z, x = cA y z) -> sk_step x = x.
+  intuition. induction x; [auto..]. destruct H. exists x1 x2. auto.
+Qed.
+
+Definition normal c := sk_step c = c.
+
+Fixpoint iterate (c : SK) n : SK
       := match n with
              | 0    => c
              | S n' => iterate (sk_step c) n'
          end.
 
-(* Church-encoded booleans: true = \x y. x and false = \x y. y *)
-Definition true_in n (c : SK 0) : Prop
-        := iterate (cA (cA c (cV     F1  : SK 2))
-                             (cV (FS F1) : SK 2)) n = (cV F1 : SK 2).
+Theorem iterateT1 n c : normal c -> iterate c n = c.
+  unfold normal; intro H; induction n as [|n]; [auto | ]. simpl. ddeqs.
+Qed.
 
-(* We can encode arbitrary problem domains using combinators and timeouts *)
-Instance skDom : Domain := {
-  (* Problems are closed combinators *)
-  Problem    := (SK 0 * nat);
-  (* Solutions are (t, a) pairs where (cA p a) reduces to true in t steps *)
-  Solution p := {a : SK 0 & true_in (snd p) (cA (fst p) a)}
-}.
+(* Finds the largest variable number in an SK term *)
+Fixpoint sk_max (c : SK) : nat
+  := match c with
+         | cS     => 0
+         | cK     => 0
+         | cV m   => m
+         | cA l r => max (sk_max l) (sk_max r)
+     end.
 
-(* We can encode arbitrary problem solvers using combinators *)
+Theorem sk_maxT1 c : sk_max (sk_step c) <= sk_max c.
+  induction c; [auto..]. induction c1; [auto..].
+  induction c1_1; [auto..]. simpl. apply Max.le_max_l.
+  destruct c1_1_1; [auto..]. simpl.
+  max_le.
+Qed.
+
+(* Apply a term to n arguments *)
+Fixpoint sk_apply_to' (c : SK) n m : SK
+  := match n, m with
+         | 0, _    => c
+         | _, 0    => c
+         | _, S m' => sk_apply_to' (cA c (cV (n - m'))) n m'
+     end.
+Definition sk_apply_to c n := sk_apply_to' c n n.
+
+Theorem sk_apply_toT1 c n : sk_apply_to c (S n) = cA (sk_apply_to c n)
+                                                     (cV (S n)).
+  induction n; [auto..].
+Qed.
+
+Theorem sk_apply_toT2 c : sk_apply_to c 0 = c.
+  auto.
+Qed.
+
+Print lt_dec.
+(* Abstract the variables out of a combinator *)
+Program Fixpoint sk_abstract (c : SK)
+  := let m := sk_max c in
+     match c with
+         | cV _        => c (* Can't abstract *)
+         | cA l (cV n) => match lt_dec (sk_max l) m, m == n with
+                              | left _, left _ => 
+                              | _,      _      => 
+
+Program Fixpoint sk_find (c : SK) n : option SK
+  := sk_apply_to c (sk_max c)
+
+(* Church-encoding of SK terms *)
+Program Fixpoint sk_quote (c : SK) : SK
+  := match c with
+                     (* "S" a b c = a *)
+         | cS     => cA (cA cS (cA cK cK)) cK
+                     (* "K" a b c = b *)
+         | cK     => cA cK cK
+                     (* "l r" a b c = c "l" "r" *)
+         | cA l r => cA cK
+                       (cA cK
+                          (cA (cA cS
+                                 (cA (cA cS (cA (cA cS cK) cK))
+                                            (cA cK (sk_quote l))))
+                                 (cA cK (sk_quote r))))
+         | cV n   => cV n
+     end.
+
+(* Unquote terms:
+ * U 'S' = S
+ *       = 'S' S b c
+ * We can unquote 'S' by passing it an S and (any) two other combinators.
+ *
+ * U 'K' = K
+ *       = 'K' a K c
+ * We can unquote 'K' by passing it any combinator, K and any combinator.
+ *
+ * U 'l r' = l r
+ *         = 'l r' a b C, for some C
+ *         = C 'l' 'r'
+ *         = (U 'l') (U 'r')
+ *
+ * This is tricky, since U is recursive: it must be Y X for some
+ * non-recursive X and fixpoint combinator Y:
+ *
+ * X u 'l r' = (u 'l') (u 'r') 
+ *           = C 'l' 'r'
+ *           = D u 'l' 'r', for some D
+ *
+ * Finding D is simple, but tedious:
+ *
+ *   D x y z = (x y) (x z)
+ *           = K (x y) z (x z)
+ *           = S (K (x y)) x z
+ *
+ *     D x y = S (K (x y)) x
+ *           = S (K (I (x y))) x, where I x = x
+ *           = S (K (K I y (x y))) x
+ *           = S (K (S (K I) x y)) x
+ *           = S ((K K y) (S (K I) x y)) x
+ *           = S (S (K K) (S (K I) x) y) x
+ *           = (K S y) (S (K K) (S (K I) x) y) x
+ *           = S (K S) (S (K K) (S (K I) x)) y x
+ *           = S (K S) (S (K K) (S (K I) x)) y (K x y)
+ *           = S (S (K S) (S (K K) (S (K I) x))) (K x) y
+ *
+ *       D x = S (S (K S) (S (K K) (S (K I) x))) (K x)
+ *           = S (S (K S) (K (S (K K)) x (S (K I) x))) (K x)
+ *           = S (S (K S) (S (K (S (K K))) (S (K I)) x)) (K x)
+ *           = S (K (S (K S)) x (S (K (S (K K))) (S (K I)) x)) (K x)
+ *           = S (S (K (S (K S))) (S (K (S (K K))) (S (K I))) x) (K x)
+ *           = (K S x) (S (K (S (K S))) (S (K (S (K K))) (S (K I))) x) (K x)
+ *           = S (K S) (S (K (S (K S))) (S (K (S (K K))) (S (K I)))) x (K x)
+ *           = S (S (K S) (S (K (S (K S))) (S (K (S (K K))) (S (K I))))) K x
+ *
+ *         D = S (S (K S) (S (K (S (K S))) (S (K (S (K K))) (S (K I))))) K
+ *
+ * Hence:
+ *
+ *    U 'l r' = Y X 'l r' = 'l r' a b (D (Y X)), so c = D (Y X)
+ *
+ *    U x = x S K (D (Y X))
+ *
+ *)
+Program Fixpoint sk_unquote (c c' : SK) (p : sk_quote c' = c) : SK
+  := let Y := cA (cA (cA cS cS) cK)
+                (cA (cA (cA cS (cA cK (cA (cA cS cS) (cA cS (cA (cA cS cS) cK))))) cK)) in
+Y.
+     let X = 
+     let C = cA D (cA Y X) in
+         cA (cA (cA c cS) cK) C
+
+
+(* 'S' = \xyz. x *)
+Definition s_enc := cA cK cV 1.
+Definition k_enc := cA cK cV 2.
+Definition a_enc := cA.
+Definition is_S x n := iterate (cA (cA (cA x (cV 1)) (cV 2)) (cV 3)) n = cV 1.
+
+(* 'K' = \xyz. y *)
+Definition is_K x n := iterate (cA (cA (cA x (cV 1)) (cV 2)) (cV 3)) n = cV 2.
+
+(* 'A' = \xyz. z*)
+Definition is_A x n := iterate (cA (cA (cA x (cV 1)) (cV 2)) (cV 3)) n = cV 3.
+(*  *)
 Definition sk_interpret (solver : SK 0) (problem : Problem) (n : nat)
          : option {a : SK 0 & true_in (snd problem) (cA (fst problem) a)}.
-  set (answer := iterate (cA solver (fst problem)) n).
+  set (answer := cA solver (fst problem)).
   destruct (iterate (cA (cA (cA (fst problem) answer)
                             (cV     F1  : SK 2))
                             (cV (FS F1) : SK 2))
@@ -198,6 +254,14 @@ Definition sk_interpret (solver : SK 0) (problem : Problem) (n : nat)
   exact None.
 Defined.
 
+(* We can encode arbitrary problem domains using combinators and timeouts *)
+Instance skDom : Domain := {
+  (* Problems are closed boolean decision procedures *)
+  Problem    := SK 0 * nat;
+  (* Solutions are (t, a) pairs where (cA p a) reduces to true in t steps *)
+  Solution p := {a : SK 0 & true_in (snd p) (cA (fst p) a)}
+}.
+
 Instance skLang : Lang := {
   (* Solvers are written as closed combinators *)
   AST       := SK 0;
@@ -205,14 +269,34 @@ Instance skLang : Lang := {
   interpret := sk_interpret
 }.
 
-(* We will use Levin Search for self-improvement *)
+(* We can use Problems to distinguish between Solvers *)
+Definition solver_diff s1 s2 n
+        := {p : Problem | Solves (sk_interpret s1) p n /\
+                        ~(Solves (sk_interpret s2) p n)}.
+
+(* We can combine two distinguishable Solvers to make one which Dominates *)
+Lemma bolt_on {s1 s2 n}
+    : solver_diff s1 s2 n ->
+      {s3 : SK 0 | forall p m,
+                          (Solves (sk_interpret s1) p m ->
+                           Solves (sk_interpret s3) p m) /\ 
+                          (Solves (sk_interpret s2) p m ->
+                           Solves (sk_interpret s3) p (n + m))}.
+  intros. destruct X. destruct a.
+  \f g p. (p (f p)) (f p) (g p)
+
+refine (exist _ _ _).
+  intros. apply conj. intro.
+  unfold Solves.
+  assert {s3 : SK 0 |
+          forall p m,
+                 Solves s1 p n -> Solves s3 p n}. eapply ex_intro.
+  unfold Dominates. apply conj. intros. apply H. destruct H.
 
 (* List all combinators of a given size *)
 Fixpoint decode_all n := match n with
 | 0 => []
 | 1 => [cS ; cK]
-
-
 
 Instance skSearcher : GivenSearcher := {
 }.
