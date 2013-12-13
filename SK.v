@@ -1,6 +1,6 @@
 (* Implementation of SK combinator calculus *)
 Require Import Omega.
-Require Import Util.
+Require Import SKUtil.
 Require Import Program.
 
 (* Combinators, with meta-language variables *)
@@ -22,13 +22,13 @@ Fixpoint sk_size c : nat
          | cA l r => sk_size l + sk_size r
      end.
 
-Theorem sk_sizeT1 : sk_size cS = 1.
-  auto.
-Qed.
-
-Theorem sk_sizeT2 l r : sk_size (cA l r) = sk_size l + sk_size r.
-  auto.
-Qed.
+Fixpoint sk_max (c : SK) : nat
+  := match c with
+         | cS     => 0
+         | cK     => 0
+         | cV m   => m
+         | cA l r => max (sk_max l) (sk_max r)
+     end.
 
 (* Decidable equality of SK combinators *)
 Program Fixpoint sk_eq (x y : SK) : {x === y} + {x =/= y}
@@ -58,18 +58,9 @@ Next Obligation. Proof.
     apply (H2 y1 y2 y1 y2). auto.
 Qed.
 
-Ltac sk_tac := unfold complement, equiv; program_simpl; deqs.
 Solve Obligations with sk_tac.
 
 Instance SKEq : EqDec SK eq := sk_eq.
-
-Theorem sk_eq_refl (c : SK) : c === c.
-  destruct (c == c); [deqs..].
-Qed.
-
-Theorem sk_eq_trans (a b c : SK) : a === b -> b === c -> a === c.
-  ddeqs.
-Qed.
 
 (* Beta reduction *)
 Program Definition sk_step (c : SK) : SK
@@ -80,14 +71,6 @@ Program Definition sk_step (c : SK) : SK
      end.
 
 Solve Obligations with sk_tac.
-
-Theorem sk_stepT1 : forall x y, sk_step (cA (cA cK x) y) = x.
-  auto.
-Qed.
-
-Theorem sk_stepT2 : forall x, ~(exists y z, x = cA y z) -> sk_step x = x.
-  intuition. induction x; [auto..]. destruct H. exists x1 x2. auto.
-Qed.
 
 Definition normal c := sk_step c = c.
 
@@ -101,42 +84,15 @@ Theorem iterateT1 n c : normal c -> iterate c n = c.
   unfold normal; intro H; induction n as [|n]; [auto | ]. simpl. ddeqs.
 Qed.
 
-(* Finds the largest variable number in an SK term *)
-Fixpoint sk_max (c : SK) : nat
-  := match c with
-         | cS     => 0
-         | cK     => 0
-         | cV m   => m
-         | cA l r => max (sk_max l) (sk_max r)
-     end.
-
-Theorem sk_maxT1 c : sk_max (sk_step c) <= sk_max c.
-  induction c; [auto..]. induction c1; [auto..].
-  induction c1_1; [auto..]. simpl. apply Max.le_max_l.
-  destruct c1_1_1; [auto..]. simpl.
-  max_le.
-Qed.
-
 (* Apply a term to n arguments *)
-Fixpoint sk_apply_to' (c : SK) n m : SK
-  := match n, m with
-         | 0, _    => c
-         | _, 0    => c
-         | _, S m' => sk_apply_to' (cA c (cV (n - m'))) n m'
+Fixpoint sk_apply_to (c : SK) n : SK
+  := match n with
+         | 0    => c
+         | S n' => cA (sk_apply_to c n') (cV n)
      end.
-Definition sk_apply_to c n := sk_apply_to' c n n.
 
-Theorem sk_apply_toT1 c n : sk_apply_to c (S n) = cA (sk_apply_to c n)
-                                                     (cV (S n)).
-  induction n; [auto..].
-Qed.
-
-Theorem sk_apply_toT2 c : sk_apply_to c 0 = c.
-  auto.
-Qed.
-
-Print lt_dec.
 (* Abstract the variables out of a combinator *)
+(*
 Program Fixpoint sk_abstract (c : SK)
   := let m := sk_max c in
      match c with
@@ -146,9 +102,10 @@ Program Fixpoint sk_abstract (c : SK)
                               | _,      _      => 
 
 Program Fixpoint sk_find (c : SK) n : option SK
-  := sk_apply_to c (sk_max c)
-
+  := sk_apply_to c (sk_max c).
+*)
 (* Church-encoding of SK terms *)
+(*
 Program Fixpoint sk_quote (c : SK) : SK
   := match c with
                      (* "S" a b c = a *)
@@ -164,7 +121,7 @@ Program Fixpoint sk_quote (c : SK) : SK
                                  (cA cK (sk_quote r))))
          | cV n   => cV n
      end.
-
+*)
 (* Unquote terms:
  * U 'S' = S
  *       = 'S' S b c
@@ -221,6 +178,7 @@ Program Fixpoint sk_quote (c : SK) : SK
  *    U x = x S K (D (Y X))
  *
  *)
+(*
 Program Fixpoint sk_unquote (c c' : SK) (p : sk_quote c' = c) : SK
   := let Y := cA (cA (cA cS cS) cK)
                 (cA (cA (cA cS (cA cK (cA (cA cS cS) (cA cS (cA (cA cS cS) cK))))) cK)) in
@@ -228,11 +186,11 @@ Y.
      let X = 
      let C = cA D (cA Y X) in
          cA (cA (cA c cS) cK) C
-
+*)
 
 (* 'S' = \xyz. x *)
-Definition s_enc := cA cK cV 1.
-Definition k_enc := cA cK cV 2.
+Definition s_enc := cA cK (cV 1).
+Definition k_enc := cA cK (cV 2).
 Definition a_enc := cA.
 Definition is_S x n := iterate (cA (cA (cA x (cV 1)) (cV 2)) (cV 3)) n = cV 1.
 
@@ -241,7 +199,7 @@ Definition is_K x n := iterate (cA (cA (cA x (cV 1)) (cV 2)) (cV 3)) n = cV 2.
 
 (* 'A' = \xyz. z*)
 Definition is_A x n := iterate (cA (cA (cA x (cV 1)) (cV 2)) (cV 3)) n = cV 3.
-(*  *)
+(*
 Definition sk_interpret (solver : SK 0) (problem : Problem) (n : nat)
          : option {a : SK 0 & true_in (snd problem) (cA (fst problem) a)}.
   set (answer := cA solver (fst problem)).
@@ -300,3 +258,4 @@ Fixpoint decode_all n := match n with
 
 Instance skSearcher : GivenSearcher := {
 }.
+*)
