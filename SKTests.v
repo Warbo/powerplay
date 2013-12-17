@@ -41,6 +41,10 @@ Theorem sk_stepT2 : forall x, ~(exists y z, x = cA y z) -> sk_step x = x.
   intuition. induction x; [auto..]. destruct H. exists x1 x2. auto.
 Qed.
 
+Theorem iterateT1 n c : normal c -> iterate c n = c.
+  unfold normal; intro H; induction n as [|n]; [auto | ]. simpl. ddeqs.
+Qed.
+
 (* Meta-programming *)
 Theorem sk_apply_to_0 c : sk_apply_to c 0 = c.
   auto.

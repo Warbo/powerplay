@@ -22,6 +22,15 @@ Fixpoint sk_size c : nat
          | cA l r => sk_size l + sk_size r
      end.
 
+Lemma sk_size_S c : exists n, sk_size c = S n.
+  induction c; match goal with
+                   | [ |- context[cA] ] => idtac
+                   | [ |- _           ] => eapply ex_intro; simpl; auto
+               end.
+  destruct IHc1. destruct IHc2. simpl. ddeqs.
+  simpl. exists (x + S x0). auto.
+Qed.
+
 Fixpoint sk_max (c : SK) : nat
   := match c with
          | cS     => 0
@@ -80,10 +89,6 @@ Fixpoint iterate (c : SK) n : SK
              | S n' => iterate (sk_step c) n'
          end.
 
-Theorem iterateT1 n c : normal c -> iterate c n = c.
-  unfold normal; intro H; induction n as [|n]; [auto | ]. simpl. ddeqs.
-Qed.
-
 (* Apply a term to n arguments *)
 Fixpoint sk_apply_to (c : SK) n : SK
   := match n with
@@ -92,15 +97,63 @@ Fixpoint sk_apply_to (c : SK) n : SK
      end.
 
 (* Abstract the variables out of a combinator *)
-(*
-Program Fixpoint sk_abstract (c : SK)
+Program Fixpoint sk_abstract' (c : SK) (a : nat)
+  : option SK
   := let m := sk_max c in
-     match c with
-         | cV _        => c (* Can't abstract *)
-         | cA l (cV n) => match lt_dec (sk_max l) m, m == n with
-                              | left _, left _ => 
-                              | _,      _      => 
+     match a, m, c with
+         | 0,    _, _           => None (* Stop recursing *)
+         | _,    0, _           => None (* Nothing to abstract *)
+         | _,    _, cV _        => None (* Can't abstract *)
+         | S a', _, cA l (cV n) => match lt_dec (sk_max l) m, m == n with
+                                       | left _, left _ => Some l
+                                       | _,      _      => sk_abstract' c a'
+                                   end
+         | S a', _, cA l r      => match sk_abstract' l a', sk_abstract' r a' with
+                                       | Some l', Some r' => Some (cA l' r')
+                                       | Some l', None    => Some (cA l' r )
+                                       | None,    Some r' => Some (cA l  r')
+                                       | None,    None    => None
+                                   end
+         | _,    _, _           => !
+     end.
 
+Next Obligation. Proof.
+  intuition. induction c.
+    refine (H _ _ _). intuition.
+    refine (H _ _ _). intuition.
+    refine (H0 _ _ _ _). intuition.
+    refine (H2 (pred a) _ _ _ _). intuition. destruct a.
+      destruct (H3 (sk_max (cA c1 c2)) (cA c1 c2)). intuition.
+      auto.
+Qed.
+
+Next Obligation. Proof.
+  intuition; try inversion H4.
+Defined.
+
+Next Obligation. Proof.
+  intuition; inversion H4.
+Defined.
+
+Next Obligation. Proof.
+  intuition.
+Defined.
+
+Next Obligation. Proof.
+  intuition. inversion H3.
+Defined.
+
+Next Obligation. Proof.
+  intuition. inversion H3.
+Defined.
+
+Next Obligation. Proof.
+  intuition. inversion H5.
+Defined.
+
+Definition sk_abstract c := sk_abstract' c (sk_size c).
+
+(*
 Program Fixpoint sk_find (c : SK) n : option SK
   := sk_apply_to c (sk_max c).
 *)
@@ -139,7 +192,7 @@ Program Fixpoint sk_quote (c : SK) : SK
  * This is tricky, since U is recursive: it must be Y X for some
  * non-recursive X and fixpoint combinator Y:
  *
- * X u 'l r' = (u 'l') (u 'r') 
+ * X u 'l r' = (u 'l') (u 'r')
  *           = C 'l' 'r'
  *           = D u 'l' 'r', for some D
  *
@@ -183,7 +236,7 @@ Program Fixpoint sk_unquote (c c' : SK) (p : sk_quote c' = c) : SK
   := let Y := cA (cA (cA cS cS) cK)
                 (cA (cA (cA cS (cA cK (cA (cA cS cS) (cA cS (cA (cA cS cS) cK))))) cK)) in
 Y.
-     let X = 
+     let X =
      let C = cA D (cA Y X) in
          cA (cA (cA c cS) cK) C
 *)
@@ -237,7 +290,7 @@ Lemma bolt_on {s1 s2 n}
     : solver_diff s1 s2 n ->
       {s3 : SK 0 | forall p m,
                           (Solves (sk_interpret s1) p m ->
-                           Solves (sk_interpret s3) p m) /\ 
+                           Solves (sk_interpret s3) p m) /\
                           (Solves (sk_interpret s2) p m ->
                            Solves (sk_interpret s3) p (n + m))}.
   intros. destruct X. destruct a.

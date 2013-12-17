@@ -54,6 +54,7 @@ Ltac destruct_eq :=
   match reverse goal with
       | [ H : _ = _   |- _ ] =>               inversion H; clear H
       | [ H : _ === _ |- _ ] => compute in H; inversion H; clear H
+      | [ X : ?T, H : forall (_ : ?T), _ = _ |- _ ] => destruct (H X); clear H
   end.
 
 Ltac ddestruct_eq :=
