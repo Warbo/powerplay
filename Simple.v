@@ -50,10 +50,10 @@ Definition searcher' {D : Domain} {L : Lang} {G : GivenSearcher}
         :  {ast2 | NoWorse (interpret ast2)
                            (interpret ast1)}.
   (* Propose a value for ast2 *)
-  refine (existT _
+  refine (exist  _
                  (match searcher ast1 n with
                       | None    => ast1
-                      | Some s' => projT1 s'
+                      | Some s' => proj1_sig s'
                   end)
                  _).
 
@@ -61,7 +61,7 @@ Definition searcher' {D : Domain} {L : Lang} {G : GivenSearcher}
   destruct (searcher ast1 n).
 
   (* searcher ast1 n = Some s. Solve by extracting the proof from s *)
-  exact (or_introl (projT2 s)).
+  exact (or_introl (proj2_sig s)).
 
   (* searcher ast1 n = None. Solve trivially *)
   exact (or_intror eq_refl).
@@ -87,9 +87,9 @@ Fixpoint get_solver {D : Domain} {s1} (n : nat)
 (* PowerPlay makes a NoWorseStream by searching with increasing timeouts *)
 CoFixpoint powerplay' {D : Domain} {L :Lang} {G : GivenSearcher}
                       ast n : NoWorseStream (interpret ast)
-        := let found := searcher' ast (2 ^ n) in
-           let ast'  := projT1 found  in
-           let proof := projT2 found  in
+        := let found := searcher' ast (S n) in
+           let ast'  := proj1_sig found  in
+           let proof := proj2_sig found  in
                nwsCons  (interpret ast)
                         (interpret ast')
                         proof
