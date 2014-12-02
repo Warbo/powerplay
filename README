@@ -7,14 +7,22 @@ language Coq[2]. Using a system like Coq gives us two things:
 
 The repository is layed out as follows:
 
-  * Expr.v     Initial attempt at defining a reflective Coq-in-Coq
-               implementation
-  * Simple.v   A simple, standalone PowerPlay specification
-  * SK.v       A (currently unfinished) PowerPlay implementation using SK
-               combinatory logic
-  * Sqrt.v     Straightforward implementation of the Simple.v specification for
-               finding square roots in lookup tables
-  * Util.v     Generic utility functions and theorems
+  * build.hs       Haskell script to build *.v files in order of dependencies
+
+  * Expr.v         Initial attempt at defining a reflective Coq-in-Coq
+                   implementation (not finished yet)
+
+  * Simple.v       A simple, standalone PowerPlay specification
+  * SimpleTests.v  Unit tests and theorems about Simple.v
+
+  * SK.v           A Coq implementation of SK combinatory logic
+  * SKTests.v      Unit tests and theorems about SK.v
+  * SKUtil.v       Utility functions, theorems and proof tactics for SK.v
+
+  * Sqrt.v         Straightforward implementation of the Simple.v specification
+                   for finding square roots in lookup tables
+
+  * Util.v         Generic utility functions and theorems
 
 [1] http://www.idsia.ch/~juergen/interest.html
 [2] http://coq.inria.fr

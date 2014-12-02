@@ -216,11 +216,13 @@ Theorem need_recursion : forall n c t1 t2,
 Qed.
 
 (* Allowing more recursion does not decrease what we can prove *)
+(*
 Theorem more_recursion : forall r n c t1 t2,
                                 cTyped    r  n c t1 t2
                              -> cTyped (S r) n c t1 t2.
   intros. induction r. inversion H.
   compute.
+*)
 
 (* cTyped isn't inductive so we use shortcuts to ignore invalid typings *)
 Theorem types_are_types : forall r n c m t,
@@ -265,7 +267,7 @@ Theorem var_irrelevance : forall r n o c1 c2 ty m,
   assert (p := nth_append cT (S n) o m c1 c2 x H0).
   rewrite p in H. auto.
 Qed.
-
+(*
 Theorem context_irrelevance : forall r n o c1 c2 ty tm,
                                      cTyped r n c1 ty tm
                                   -> cTyped r (n + o) (append c1 c2) ty tm.
@@ -279,9 +281,10 @@ Theorem context_irrelevance : forall r n o c1 c2 ty tm,
   repeat (unfold cTyped; intuition).
   repeat (unfold cTyped; intuition).
   dependent destruction ty.
-  
+*)
 
 (* Everything in 'Type x' is also in 'Type (x + y)' *)
+(*
 Theorem cumulative : forall x y t n c1 r1,
                      exists r2 c2,
                             (cTyped r1 n c1 (cType  x     ) t) ->
@@ -296,4 +299,5 @@ Theorem cumulative : forall x y t n c1 r1,
   unfold betaEquiv. destruct H. destruct H. destruct H. exists (cType (x + y)).
   exists x2. exists x3. destruct H.
   assert (cSteps x2 (nth c1 (of_nat_lt x0)) = cSteps x3 (cType x)).
-  rewrite H. rewrite H0. auto. intuition. 
+  rewrite H. rewrite H0. auto. intuition.
+*)
