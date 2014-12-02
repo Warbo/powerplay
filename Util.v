@@ -47,3 +47,18 @@ Instance EqFinPt : EqDec {n : nat & fin n} eq.
   (* Case x <> x0 *)
   compute in c. neq.
 Defined.
+
+(* Solves a False goal if we have bogus equalities *)
+Ltac destruct_eq :=
+  match reverse goal with
+      | [ H : _ = _ |- False] => (inversion H; clear H)
+  end.
+
+Ltac deqs := intuition; repeat destruct_eq.
+
+Definition deq_test : forall n, (1 = 1)     ->
+                                (2 = 3)     ->
+                                (S n = S n) ->
+                                ~(4 = 4 /\ 5 = 5).
+  deqs.
+Qed.
