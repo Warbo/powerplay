@@ -4,7 +4,7 @@ Require Import Max.
 
 (* Useful for proving things aren't equal *)
 Ltac neq :=
-  apply right; intro; dependent destruction H;
+  apply right; intro; (try dependent destruction H; try inversion H);
   match goal with
         [ c : ?e -> False |- False ] => try (apply (c eq_refl))
   end.
@@ -29,7 +29,7 @@ Fixpoint fin_eq {n} (x y : fin n) : {x === y} + {x =/= y}.
       (* Case x' = y' *)
       destruct (fin_eq n x y). apply left. rewrite e. auto.
       (* Case x' <> y' *)
-      compute in c. neq.
+      compute in c. neq. injection H. intuition.
 Defined.
 
 Instance EqFin {n} : EqDec (fin n) eq.
@@ -44,7 +44,7 @@ Instance EqFinPt : EqDec {n : nat & fin n} eq.
     (* Case t = t0 *)
     destruct (t == t0). apply left. rewrite e. auto.
     (* Case t <> t0 *)
-    compute in c. neq.
+    compute in c. neq. injection H. intuition.
   (* Case x <> x0 *)
   compute in c. neq.
 Defined.

@@ -6,3 +6,4 @@
 *.cmx
 *.cmxs
 *.v.d
+.*.aux
